@@ -1,0 +1,150 @@
+-- --- MINI MENU: MINH ĐẸP TRAI (HIGH FLY EDITION) ---
+if game.CoreGui:FindFirstChild("MinhDepTraiHigh") then 
+    game.CoreGui.MinhDepTraiHigh:Destroy() 
+end
+
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "MinhDepTraiHigh"
+
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 160, 0, 110)
+Main.Position = UDim2.new(0.05, 0, 0.4, 0)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Main.Active = true
+Main.Draggable = true
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
+
+-- Tên Menu
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Text = "MINH ĐẸP TRAI"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 16
+Instance.new("UICorner", Title)
+
+-- Nút Bật/Tắt
+local Btn = Instance.new("TextButton", Main)
+Btn.Size = UDim2.new(0, 140, 0, 60)
+Btn.Position = UDim2.new(0, 10, 0, 40)
+Btn.Text = "BẬT BAY CAO"
+Btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Btn.TextColor3 = Color3.new(1, 1, 1)
+Btn.Font = Enum.Font.SourceSansBold
+Btn.TextSize = 18
+Instance.new("UICorner", Btn)
+
+-- --- CẤU HÌNH ---
+_G.AutoFarm = false
+local Speed = 350
+local FlyHeight = 500 -- Độ cao khi bay qua biển/đảo
+
+local Sea2Islands = {
+    Vector3.new(-425, FlyHeight, 845),      -- Kingdom of Rose
+    Vector3.new(-2450, FlyHeight, -3200),   -- Green Bit
+    Vector3.new(-1450, FlyHeight, -5100),   -- Graveyard
+    Vector3.new(750, FlyHeight, -5300),    -- Snow Mountain
+    Vector3.new(-5500, FlyHeight, -1100),   -- Hot and Cold
+    Vector3.new(-10500, FlyHeight, -1500), -- Cursed Ship
+    Vector3.new(5500, FlyHeight, -1100)     -- Ice Castle
+}
+
+local Sea3Islands = {
+    Vector3.new(-290, FlyHeight, 5300),    -- Port Town
+    Vector3.new(5700, FlyHeight, -200),   -- Hydra Island
+    Vector3.new(-11000, FlyHeight, -1500),-- Floating Turtle
+    Vector3.new(-5000, FlyHeight, -3000), -- Castle on the Sea
+    Vector3.new(-9500, FlyHeight, 5500),  -- Haunted Castle
+    Vector3.new(-12000, FlyHeight, -12000) -- Sea of Treats
+}
+
+-- --- HÀM DI CHUYỂN BAY CAO ---
+local function SmoothMove(TargetPos)
+    local char = game.Players.LocalPlayer.Character
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    -- Nếu mục tiêu ở xa (khác đảo), bay vọt lên cao trước
+    local dist = (root.Position - TargetPos).Magnitude
+    if dist > 500 then
+        local highPos = Vector3.new(root.Position.X, FlyHeight, root.Position.Z)
+        -- Lướt lên cao
+        local tween = game:GetService("TweenService"):Create(root, TweenInfo.new(1), {CFrame = CFrame.new(highPos)})
+        tween:Play()
+        tween.Completed:Wait()
+    end
+
+    while _G.AutoFarm and (root.Position - TargetPos).Magnitude > 10 do
+        root.CFrame = CFrame.new(root.Position, TargetPos)
+        root.Velocity = (TargetPos - root.Position).Unit * Speed
+        
+        for _, v in pairs(char:GetDescendants()) do
+            if v:IsA("BasePart") then v.CanCollide = false end
+        end
+        task.wait()
+    end
+    root.Velocity = Vector3.new(0, 0, 0)
+end
+
+-- --- QUÉT MỤC TIÊU ---
+local function GetTargets()
+    local t = {}
+    for _, v in pairs(game.Workspace:GetChildren()) do
+        if v:IsA("Tool") and v:FindFirstChild("Handle") then
+            table.insert(t, {Pos = v.Handle.Position, Obj = v, IsFruit = true})
+        end
+    end
+    for _, v in pairs(game.Workspace:GetDescendants()) do
+        if v:IsA("Part") and v.Name:find("Chest") and v:FindFirstChild("TouchInterest") then
+            table.insert(t, {Pos = v.Position, Obj = v, IsFruit = false})
+        end
+    end
+    table.sort(t, function(a, b)
+        return (a.Pos - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude < (b.Pos - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+    end)
+    return t
+end
+
+-- --- LOGIC ---
+Btn.MouseButton1Click:Connect(function()
+    _G.AutoFarm = not _G.AutoFarm
+    Btn.Text = _G.AutoFarm and "ĐANG BAY..." or "BẬT BAY CAO"
+    Btn.BackgroundColor3 = _G.AutoFarm and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(60, 60, 60)
+    
+    if _G.AutoFarm then
+        task.spawn(function()
+            while _G.AutoFarm do
+                local list = GetTargets()
+                local currentIslands = (game.PlaceId == 4442272183) and Sea2Islands or Sea3Islands
+                
+                if #list > 0 then
+                    for _, target in pairs(list) do
+                        if not _G.AutoFarm then break end
+                        SmoothMove(target.Pos)
+                        if target.IsFruit then
+                            task.wait(0.3)
+                            game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("StoreFruit", target.Obj:GetAttribute("FruitName") or target.Obj.Name, target.Obj)
+                        end
+                        task.wait(0.1)
+                    end
+                else
+                    for _, pos in pairs(currentIslands) do
+                        if not _G.AutoFarm or #GetTargets() > 0 then break end
+                        SmoothMove(pos)
+                        task.wait(1.5)
+                    end
+                end
+                
+                if #GetTargets() == 0 and _G.AutoFarm then
+                    pcall(function()
+                        local res = game:HttpService():JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100"))
+                        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, res.data[math.random(1, #res.data)].id)
+                    end)
+                    break
+                end
+                task.wait(0.5)
+            end
+        end)
+    end
+end)
